@@ -1,137 +1,236 @@
 #!/usr/bin/env python3
 """
-Render the Web World Wide spinning wireframe globe as a seamless, looping GIF.
+Render the Web World Wide hero globe as a seamless, looping GIF that mirrors the
+website: a blue sky with drifting pixel-art clouds and the wireframe globe
+spinning in front.
 
-This is an offline port of the site's live WebGL globe
-(webworldwide-website/site/src/scripts/globe-nav.ts): a parametric wireframe
-sphere of 14 meridians + 9 parallels (96 segments / line), viewed through a
-perspective camera (fov 34, z = 3.4) and rotated about the Y axis.
+Faithful to the live site:
+  * Sky gradient      -> site/src/styles/sky.css
+  * Pixel-art clouds  -> site/src/scripts/clouds.ts (same SHAPES + colors)
+  * Wireframe globe   -> site/src/scripts/globe-nav.ts (14 meridians, 9
+                         parallels, fov 34, cam z 3.4, uniform black lines)
 
-Seamless-loop trick: the wireframe is invariant under a 2*pi/14 rotation
-(parallels are circles about Y; the 14 meridians permute onto themselves), so we
-only animate one 1/14-turn slice -> a perfect loop in a handful of frames.
+Perfect loop, no visible cut: the GIF spans one shared period of N frames in
+which (a) the globe rotates exactly 2*pi/14 -- the wireframe is invariant under
+that rotation, so frame N == frame 0 -- and (b) the clouds pan exactly one frame
+width and wrap, so they also return to start. The last frame therefore flows
+seamlessly into the first.
 
-Lines are drawn back-to-front (painter's algorithm) with a depth-based color
-fade (full brand sky-blue at the front, lightened toward the back) so the sphere
-reads as 3D without needing per-pixel alpha. Rendered at 4x and downsampled for
-clean anti-aliasing, then exported with a transparent background that reads on
-both GitHub light and dark themes.
+The globe is drawn at 4x supersample for clean anti-aliasing on the sky; the
+clouds are drawn crisp (nearest-neighbor) like the site's `image-rendering:
+pixelated`. The scene is framed as a rounded-rect card.
 
-Requires: Pillow, numpy.  Outputs profile/assets/globe.gif and globe.png.
+Also emits a small static transparent wireframe (globe.png) for the website
+project-card icon.
+
+Requires: Pillow, numpy.  Outputs profile/assets/globe.gif + globe.png.
 """
 from __future__ import annotations
 import math
 import os
+import random
 import numpy as np
 from PIL import Image, ImageDraw
 
-# --- geometry (mirrors globe-nav.ts) -----------------------------------------
+# --- globe geometry (mirrors globe-nav.ts) -----------------------------------
 MERIDIANS = 14
 PARALLELS = 9
 LINE_SEGS = 96
-CAM_DIST = 3.4          # camera.position.z
-FOV_DEG = 34.0          # PerspectiveCamera vertical fov
-TILT_X_DEG = 12.0       # slight forward tilt so it reads as a globe (site is 0)
+CAM_DIST = 3.4
+FOV_DEG = 34.0
+TILT_X_DEG = 12.0        # slight forward tilt so it reads as a globe
 
-# --- output -------------------------------------------------------------------
-OUT = 360               # final GIF size (px)
-SS = 4                  # supersample factor for anti-aliasing
-SIZE = OUT * SS
-FRAMES = 24             # frames across one 1/14 turn
-MARGIN = 0.90           # fraction of half-frame the sphere fills
-LINE_W = 2.4 * SS       # line width at render scale
+# --- scene / output ----------------------------------------------------------
+OUT = 340                # final GIF size (px, square)
+SS = 4                   # globe supersample factor
+FRAMES = 36              # frames across one shared loop period
+GLOBE_FILL = 0.82        # globe diameter as fraction of the card
+LINE_W = 1.7 * SS        # globe line width at supersample scale
+CORNER = 30              # rounded-card corner radius (px)
+SEED = 7                 # deterministic cloud layout
 
-# --- brand colors -------------------------------------------------------------
-FRONT = np.array([30, 104, 240], dtype=float)    # #1e68f0 sky blue (near edge)
-BACK = np.array([150, 196, 246], dtype=float)     # lightened blue (far side)
+# --- colors (brand / site) ---------------------------------------------------
+SKY_TOP = (20, 80, 200)     # #1450c8  --sky-deep
+SKY_MID = (30, 104, 240)    # #1e68f0  --sky
+SKY_BOT = (46, 122, 242)    # #2e7af2
+GLOBE_RGB = (8, 12, 28)     # near-black wireframe (matches site's black lines)
+CLOUD_OPACITY = 0.72        # site .sky-puffs opacity
 
 HALF_FOV = math.radians(FOV_DEG) / 2.0
 TAN_HALF = math.tan(HALF_FOV)
 TILT_X = math.radians(TILT_X_DEG)
 
+# --- pixel-art cloud shapes (ported verbatim from clouds.ts) -----------------
+SHAPES = [
+    ["0002220002220000022000",
+     "0022112202211220222110",
+     "0211111211111111111112",
+     "2111111111111111111112",
+     "2111111111111111111112",
+     "0222222222222222222220"],
+    ["00022200002200",
+     "00211122022112",
+     "02111111111112",
+     "02111111111112",
+     "02222222222220"],
+    ["00022000022000022000022000",
+     "02211220221122022112202112",
+     "21111111111111111111111111",
+     "02222222222222222222222220"],
+    ["0002220000",
+     "0022112200",
+     "0211111120",
+     "2111111112",
+     "2111111112",
+     "0211111120",
+     "0022222200"],
+]
+# outline colors, light -> deep blue (clouds.ts DEFAULT_LAYERS)
+CLOUD_OUTLINES = [(212, 223, 240), (192, 208, 236), (168, 200, 240), (136, 180, 232)]
 
-def build_lines() -> list[np.ndarray]:
-    """Return each meridian/parallel as an (N,3) array of unit-sphere points."""
-    lines: list[np.ndarray] = []
+
+# ============================ sky ============================================
+def make_sky(size: int) -> Image.Image:
+    """Vertical gradient matching sky.css (#1450c8 -> #1e68f0@38% -> #2e7af2)."""
+    arr = np.zeros((size, size, 3), dtype=np.uint8)
+    for y in range(size):
+        f = y / (size - 1)
+        if f <= 0.38:
+            t = f / 0.38
+            c = [SKY_TOP[i] + (SKY_MID[i] - SKY_TOP[i]) * t for i in range(3)]
+        else:
+            t = (f - 0.38) / 0.62
+            c = [SKY_MID[i] + (SKY_BOT[i] - SKY_MID[i]) * t for i in range(3)]
+        arr[y, :] = c
+    return Image.fromarray(arr, "RGB")
+
+
+# ============================ clouds =========================================
+def cloud_sprite(shape, scale, outline) -> Image.Image:
+    """Render one pixel-art puff crisp (1px cells scaled nearest)."""
+    h, w = len(shape), len(shape[0])
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            ch = shape[y][x]
+            if ch == "1":
+                px[x, y] = (255, 255, 255, 255)
+            elif ch == "2":
+                px[x, y] = (*outline, 255)
+    return img.resize((w * scale, h * scale), Image.NEAREST)
+
+
+def build_clouds(size: int):
+    """Deterministic puff layout. Returns list of (sprite, x, y, alpha)."""
+    rng = random.Random(SEED)
+    layers = [   # (count, scale_min, scale_max, op_min, op_max, top_min, top_max)
+        (3, 2, 3, 0.30, 0.50, 0.00, 0.30),
+        (4, 3, 5, 0.50, 0.70, 0.02, 0.62),
+        (4, 5, 7, 0.70, 0.85, 0.08, 0.86),
+        (2, 8, 11, 0.85, 0.95, 0.16, 0.92),
+    ]
+    puffs = []
+    for li, (count, smin, smax, omin, omax, tmin, tmax) in enumerate(layers):
+        outline = CLOUD_OUTLINES[li]
+        for _ in range(count):
+            shape = rng.choice(SHAPES)
+            scale = rng.randint(smin, smax)
+            sprite = cloud_sprite(shape, scale, outline)
+            x = rng.uniform(0, size)
+            y = rng.uniform(tmin, tmax) * size
+            alpha = rng.uniform(omin, omax)
+            puffs.append((sprite, x, y, alpha))
+    return puffs
+
+
+def paste_clouds(base: Image.Image, puffs, pan: float, size: int) -> None:
+    """Composite drifting puffs onto `base`, wrapping seamlessly across width."""
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    for sprite, x0, y, alpha in puffs:
+        sp = sprite
+        if alpha < 0.999:  # pre-multiply layer alpha into the sprite's alpha
+            a = sp.split()[3].point(lambda v: int(v * alpha))
+            sp = sp.copy(); sp.putalpha(a)
+        x = (x0 - pan) % size
+        for dx in (x - size, x, x + size):  # wrap copies on both edges
+            layer.alpha_composite(sp, (int(round(dx)), int(round(y))))
+    # global cloud-layer opacity, like .sky-puffs { opacity: .72 }
+    a = layer.split()[3].point(lambda v: int(v * CLOUD_OPACITY))
+    layer.putalpha(a)
+    base.alpha_composite(layer)
+
+
+# ============================ globe ==========================================
+def build_lines():
+    lines = []
     for i in range(MERIDIANS):
         a = (i / MERIDIANS) * math.pi * 2
         j = np.arange(LINE_SEGS + 1)
         t = (j / LINE_SEGS) * math.pi
-        pts = np.stack(
-            [np.sin(t) * math.cos(a), np.cos(t), np.sin(t) * math.sin(a)], axis=1
-        )
-        lines.append(pts)
+        lines.append(np.stack(
+            [np.sin(t) * math.cos(a), np.cos(t), np.sin(t) * math.sin(a)], axis=1))
     for i in range(1, PARALLELS):
         phi = (i / PARALLELS) * math.pi
-        y = math.cos(phi)
-        r = math.sin(phi)
+        y, r = math.cos(phi), math.sin(phi)
         j = np.arange(LINE_SEGS + 1)
         t = (j / LINE_SEGS) * math.pi * 2
-        pts = np.stack(
-            [r * np.cos(t), np.full_like(t, y), r * np.sin(t)], axis=1
-        )
-        lines.append(pts)
+        lines.append(np.stack(
+            [r * np.cos(t), np.full_like(t, y), r * np.sin(t)], axis=1))
     return lines
 
 
-def rot_y(pts: np.ndarray, theta: float) -> np.ndarray:
-    c, s = math.cos(theta), math.sin(theta)
-    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
-    return np.stack([x * c + z * s, y, -x * s + z * c], axis=1)
+def rot_y(p, th):
+    c, s = math.cos(th), math.sin(th)
+    return np.stack([p[:, 0] * c + p[:, 2] * s, p[:, 1],
+                     -p[:, 0] * s + p[:, 2] * c], axis=1)
 
 
-def tilt_x(pts: np.ndarray, ang: float) -> np.ndarray:
+def tilt_x(p, ang):
     c, s = math.cos(ang), math.sin(ang)
-    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
-    return np.stack([x, y * c - z * s, y * s + z * c], axis=1)
+    return np.stack([p[:, 0], p[:, 1] * c - p[:, 2] * s,
+                     p[:, 1] * s + p[:, 2] * c], axis=1)
 
 
-def project(pts: np.ndarray):
-    """Perspective-project to pixel coords; return (xy, depth_z_camera)."""
-    z = pts[:, 2]
-    d = CAM_DIST - z                       # distance along view axis (>0)
-    ndc_x = (pts[:, 0] / d) / TAN_HALF
-    ndc_y = (pts[:, 1] / d) / TAN_HALF
-    px = SIZE / 2 + ndc_x * (SIZE / 2) * MARGIN
-    py = SIZE / 2 - ndc_y * (SIZE / 2) * MARGIN
-    return np.stack([px, py], axis=1), z
+def project(p, size, fill):
+    d = CAM_DIST - p[:, 2]
+    nx = (p[:, 0] / d) / TAN_HALF
+    ny = (p[:, 1] / d) / TAN_HALF
+    px = size / 2 + nx * (size / 2) * fill
+    py = size / 2 - ny * (size / 2) * fill
+    return np.stack([px, py], axis=1)
 
 
-def render_frame(lines, theta: float) -> Image.Image:
-    img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+def render_globe(lines, theta, size, color, line_w, fill):
+    """Wireframe on a transparent layer at `size`, uniform color (site look)."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-
-    segments = []  # (depth, (x0,y0,x1,y1), color)
+    r = line_w / 2.0
     for pts in lines:
-        p = tilt_x(rot_y(pts, theta), TILT_X)
-        xy, z = project(p)
-        for k in range(len(p) - 1):
-            zmid = (z[k] + z[k + 1]) / 2.0
-            t = (zmid + 1.0) / 2.0          # 0 (back) .. 1 (front)
-            col = BACK + (FRONT - BACK) * t
-            color = (int(col[0]), int(col[1]), int(col[2]), 255)
-            segments.append(
-                (zmid, (xy[k, 0], xy[k, 1], xy[k + 1, 0], xy[k + 1, 1]), color)
-            )
-
-    segments.sort(key=lambda s: s[0])       # back first, front last
-    r = LINE_W / 2.0
-    for _, (x0, y0, x1, y1), color in segments:
-        draw.line((x0, y0, x1, y1), fill=color, width=int(round(LINE_W)))
-        # round caps so joints don't gap
-        draw.ellipse((x0 - r, y0 - r, x0 + r, y0 + r), fill=color)
-        draw.ellipse((x1 - r, y1 - r, x1 + r, y1 + r), fill=color)
-
-    return img.resize((OUT, OUT), Image.LANCZOS)
+        xy = project(tilt_x(rot_y(pts, theta), TILT_X), size, fill)
+        draw.line([tuple(pt) for pt in xy], fill=(*color, 255),
+                  width=int(round(line_w)), joint="curve")
+        # round caps so the polyline ends/joints stay smooth
+        x0, y0 = xy[0]; x1, y1 = xy[-1]
+        draw.ellipse((x0 - r, y0 - r, x0 + r, y0 + r), fill=(*color, 255))
+        draw.ellipse((x1 - r, y1 - r, x1 + r, y1 + r), fill=(*color, 255))
+    return img
 
 
-def to_paletted(frame: Image.Image) -> Image.Image:
-    """RGBA -> P mode with a reserved transparent index (binary alpha)."""
-    rgb = frame.convert("RGB")
-    pal = rgb.quantize(colors=48, method=Image.MEDIANCUT, dither=Image.NONE)
-    alpha = frame.split()[3]
-    mask = alpha.point(lambda a: 255 if a >= 128 else 0)  # threshold 50%
-    pal.paste(255, mask.point(lambda a: 255 if a == 0 else 0).convert("1"))
+# ============================ framing / export ===============================
+def rounded_mask(size: int, radius: int) -> Image.Image:
+    m = Image.new("L", (size * SS, size * SS), 0)
+    ImageDraw.Draw(m).rounded_rectangle(
+        (0, 0, size * SS - 1, size * SS - 1), radius=radius * SS, fill=255)
+    return m.resize((size, size), Image.LANCZOS)
+
+
+def to_paletted(frame: Image.Image, mask: Image.Image) -> Image.Image:
+    """RGB scene -> P mode; pixels outside the rounded card are transparent."""
+    pal = frame.convert("RGB").quantize(
+        colors=255, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
+    transp = mask.point(lambda v: 255 if v < 128 else 0).convert("1")
+    pal.paste(255, transp)
     pal.info["transparency"] = 255
     return pal
 
@@ -142,27 +241,35 @@ def main() -> None:
     os.makedirs(out_dir, exist_ok=True)
 
     lines = build_lines()
+    sky = make_sky(OUT)
+    puffs = build_clouds(OUT)
+    mask = rounded_mask(OUT, CORNER)
     period = (2 * math.pi) / MERIDIANS
-    rgba = [render_frame(lines, k / FRAMES * period) for k in range(FRAMES)]
 
-    frames = [to_paletted(f) for f in rgba]
+    frames = []
+    for f in range(FRAMES):
+        scene = sky.copy().convert("RGBA")
+        paste_clouds(scene, puffs, pan=f / FRAMES * OUT, size=OUT)
+        globe = render_globe(lines, f / FRAMES * period, OUT * SS,
+                             GLOBE_RGB, LINE_W, GLOBE_FILL).resize(
+            (OUT, OUT), Image.LANCZOS)
+        scene.alpha_composite(globe)
+        frames.append(to_paletted(scene.convert("RGB"), mask))
+
     gif_path = os.path.join(out_dir, "globe.gif")
-    frames[0].save(
-        gif_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=50,
-        loop=0,
-        disposal=2,
-        transparency=255,
-        optimize=True,
-    )
-    png_path = os.path.join(out_dir, "globe.png")
-    rgba[0].save(png_path)
+    frames[0].save(gif_path, save_all=True, append_images=frames[1:],
+                   duration=60, loop=0, disposal=2, transparency=255,
+                   optimize=True)
 
-    print(f"wrote {gif_path} ({os.path.getsize(gif_path) // 1024} KB, "
+    # static transparent wireframe for the website project-card icon
+    icon = render_globe(lines, 0.0, OUT * SS, (30, 104, 240), 2.2 * SS,
+                        GLOBE_FILL).resize((OUT, OUT), Image.LANCZOS)
+    png_path = os.path.join(out_dir, "globe.png")
+    icon.save(png_path)
+
+    print(f"wrote {gif_path} ({os.path.getsize(gif_path)//1024} KB, "
           f"{OUT}px, {FRAMES} frames)")
-    print(f"wrote {png_path} ({os.path.getsize(png_path) // 1024} KB)")
+    print(f"wrote {png_path} ({os.path.getsize(png_path)//1024} KB)")
 
 
 if __name__ == "__main__":
