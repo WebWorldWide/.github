@@ -44,8 +44,9 @@ TILT_X_DEG = 12.0        # slight forward tilt so it reads as a globe
 OUT = 340                # final GIF size (px, square)
 SS = 4                   # globe supersample factor
 FRAMES = 36              # frames across one shared loop period
+GLOBE_TURNS = 2          # symmetric 2*pi/14 rotations per loop (higher = faster spin)
 GLOBE_FILL = 0.82        # globe diameter as fraction of the card
-LINE_W = 1.7 * SS        # globe line width at supersample scale
+LINE_W = 2.9 * SS        # globe line width at supersample scale (bold, like the site)
 CORNER = 30              # rounded-card corner radius (px)
 SEED = 7                 # deterministic cloud layout
 
@@ -250,7 +251,7 @@ def main() -> None:
     for f in range(FRAMES):
         scene = sky.copy().convert("RGBA")
         paste_clouds(scene, puffs, pan=f / FRAMES * OUT, size=OUT)
-        globe = render_globe(lines, f / FRAMES * period, OUT * SS,
+        globe = render_globe(lines, f / FRAMES * period * GLOBE_TURNS, OUT * SS,
                              GLOBE_RGB, LINE_W, GLOBE_FILL).resize(
             (OUT, OUT), Image.LANCZOS)
         scene.alpha_composite(globe)
@@ -262,7 +263,7 @@ def main() -> None:
                    optimize=True)
 
     # static transparent wireframe for the website project-card icon
-    icon = render_globe(lines, 0.0, OUT * SS, (30, 104, 240), 2.2 * SS,
+    icon = render_globe(lines, 0.0, OUT * SS, (30, 104, 240), 2.9 * SS,
                         GLOBE_FILL).resize((OUT, OUT), Image.LANCZOS)
     png_path = os.path.join(out_dir, "globe.png")
     icon.save(png_path)
