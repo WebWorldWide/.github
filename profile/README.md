@@ -57,7 +57,6 @@
         <a href="https://github.com/WebWorldWide/FileID/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/FileID?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="last commit" /></a>
         <img src="https://img.shields.io/github/languages/top/WebWorldWide/FileID?style=flat-square&color=28b083&labelColor=0e2960" alt="top language" />
         <img src="https://img.shields.io/github/repo-size/WebWorldWide/FileID?style=flat-square&color=1e68f0&labelColor=0e2960" alt="repo size" />
-        <a href="https://github.com/WebWorldWide/FileID"><img src="https://tokei.rs/b1/github/WebWorldWide/FileID?category=code&label=lines" alt="lines of code" /></a>
         &nbsp;<a href="https://github.com/WebWorldWide/FileID"><img src="https://img.shields.io/badge/→_View_repo-0e2960?style=flat-square&logo=github&logoColor=white" alt="View repo" /></a>
       </p>
     </td>
@@ -88,7 +87,6 @@
         <a href="https://github.com/WebWorldWide/Document-Finder/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/Document-Finder?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="last commit" /></a>
         <img src="https://img.shields.io/github/languages/top/WebWorldWide/Document-Finder?style=flat-square&color=28b083&labelColor=0e2960" alt="top language" />
         <img src="https://img.shields.io/github/repo-size/WebWorldWide/Document-Finder?style=flat-square&color=1e68f0&labelColor=0e2960" alt="repo size" />
-        <a href="https://github.com/WebWorldWide/Document-Finder"><img src="https://tokei.rs/b1/github/WebWorldWide/Document-Finder?category=code&label=lines" alt="lines of code" /></a>
         <img src="https://img.shields.io/github/license/WebWorldWide/Document-Finder?style=flat-square&color=0e2960&labelColor=0e2960" alt="license" />
         &nbsp;<a href="https://github.com/WebWorldWide/Document-Finder"><img src="https://img.shields.io/badge/→_View_repo-0e2960?style=flat-square&logo=github&logoColor=white" alt="View repo" /></a>
       </p>
@@ -117,7 +115,6 @@
         <a href="https://github.com/WebWorldWide/webworldwide-website/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/webworldwide-website?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="last commit" /></a>
         <img src="https://img.shields.io/github/languages/top/WebWorldWide/webworldwide-website?style=flat-square&color=28b083&labelColor=0e2960" alt="top language" />
         <img src="https://img.shields.io/github/repo-size/WebWorldWide/webworldwide-website?style=flat-square&color=1e68f0&labelColor=0e2960" alt="repo size" />
-        <a href="https://github.com/WebWorldWide/webworldwide-website"><img src="https://tokei.rs/b1/github/WebWorldWide/webworldwide-website?category=code&label=lines" alt="lines of code" /></a>
         &nbsp;<a href="https://github.com/WebWorldWide/webworldwide-website"><img src="https://img.shields.io/badge/→_View_repo-0e2960?style=flat-square&logo=github&logoColor=white" alt="View repo" /></a>
         &nbsp;<a href="https://webworldwide.online"><img src="https://img.shields.io/badge/Live_site-1e68f0?style=flat-square&logo=googlechrome&logoColor=white" alt="Live site" /></a>
       </p>
