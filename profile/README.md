@@ -51,6 +51,7 @@
         <a href="https://github.com/WebWorldWide/FileID/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/FileID?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/FileID/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/FileID?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
         <img src="https://img.shields.io/github/license/WebWorldWide/FileID?style=flat-square&color=1e68f0&labelColor=0e2960" alt="License" />
+        &nbsp;<a href="https://fileid.webworldwide.online"><img src="https://img.shields.io/badge/Website-1e68f0?style=flat-square&logo=googlechrome&logoColor=white" alt="FileID website" /></a>
       </p>
     </td>
   </tr>
@@ -79,6 +80,7 @@
         <a href="https://github.com/WebWorldWide/Document-Finder/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/Document-Finder?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/Document-Finder/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/Document-Finder?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
         <img src="https://img.shields.io/github/license/WebWorldWide/Document-Finder?style=flat-square&color=1e68f0&labelColor=0e2960" alt="License" />
+        &nbsp;<a href="https://documentfinder.webworldwide.online"><img src="https://img.shields.io/badge/Website-1e68f0?style=flat-square&logo=googlechrome&logoColor=white" alt="Document Finder website" /></a>
       </p>
     </td>
   </tr>
