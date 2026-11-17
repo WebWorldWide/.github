@@ -1,52 +1,80 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pillow", "numpy"]
+# ///
 """
 Render the Web World Wide hero globe as a seamless, looping GIF that mirrors the
-website: a blue sky with drifting pixel-art clouds and the wireframe globe
-spinning in front.
+website: a blue sky with drifting pixel-art clouds and the pixel-art Earth
+spinning in front, with the hero's ink outline and offset shadow.
 
 Faithful to the live site:
   * Sky gradient      -> site/src/styles/sky.css
   * Pixel-art clouds  -> site/src/scripts/clouds.ts (same SHAPES + colors)
-  * Wireframe globe   -> site/src/scripts/globe-nav.ts (14 meridians, 9
-                         parallels, fov 34, cam z 3.4, uniform black lines)
+  * Pixel-art globe   -> site/src/lib/pixel-globe.ts (a straight port of
+                         globeSampler: same Natural Earth map, orthographic
+                         projection, 3x3 majority vote and small-island pass)
+                         seen as in scripts/globe-nav.ts (64 px across, viewed
+                         from 5 deg N, Atlantic facing at rest, turning west to
+                         east) and styled like .wordmark-globe (4px ink border,
+                         8px ink offset shadow).
 
-Perfect loop, no visible cut: the GIF spans one shared period of N frames in
-which (a) the globe rotates exactly 2*pi/14 -- the wireframe is invariant under
-that rotation, so frame N == frame 0 -- and (b) the clouds pan exactly one frame
-width and wrap, so they also return to start. The last frame therefore flows
-seamlessly into the first.
+The map itself is read from the site's generated site/src/lib/world-map.ts,
+so the GIF always matches the website. Pass a path to that file (or to a
+webworldwide-website checkout) as the first argument; with no argument the
+script fetches it from the site repo's main branch.
 
-The globe is drawn at 4x supersample for clean anti-aliasing on the sky; the
-clouds are drawn crisp (nearest-neighbor) like the site's `image-rendering:
-pixelated`. The scene is framed as a rounded-rect card.
+Perfect loop, no visible cut: the GIF spans one full turn of the globe in
+FRAMES frames while the clouds pan exactly one frame width and wrap, so the
+last frame flows straight into the first.
 
-Also emits a small static transparent wireframe (globe.png) for the website
+Globe pixels are scaled by an exact integer (nearest neighbour, like the
+site's `image-rendering: pixelated`); only the disc's rim is anti-aliased.
+The scene is framed as a rounded-rect card.
+
+Also emits a static transparent globe (globe.png) for the website
 project-card icon.
 
-Requires: Pillow, numpy.  Outputs profile/assets/globe.gif + globe.png.
+Run:  uv run tools/make-globe-gif.py [path/to/world-map.ts | path/to/site-checkout]
+Outputs profile/assets/globe.gif + globe.png.
 """
 from __future__ import annotations
+
 import math
 import os
 import random
+import re
+import sys
+import urllib.request
+
 import numpy as np
 from PIL import Image, ImageDraw
 
-# --- globe geometry (mirrors globe-nav.ts) -----------------------------------
-MERIDIANS = 14
-PARALLELS = 9
-LINE_SEGS = 96
-CAM_DIST = 3.4
-FOV_DEG = 34.0
-TILT_X_DEG = 12.0        # slight forward tilt so it reads as a globe
+WORLD_MAP_URL = ("https://raw.githubusercontent.com/WebWorldWide/webworldwide-website/"
+                 "main/site/src/lib/world-map.ts")
+
+# --- globe (mirrors globe-nav.ts / pixel-globe.ts) ---------------------------
+GLOBE_PX = 64            # globe resolution across (the hero's HERO_GLOBE_PX)
+VIEW_LAT = 5.0           # seen from a little north
+START_LON = -30.0        # Atlantic facing at rest
+SUB = 3                  # sub-samples per pixel side (majority vote)
+PALETTE = np.array([     # ocean, land, desert, tundra, ice
+    (0x1e, 0x68, 0xf0),
+    (0x39, 0xbe, 0x00),
+    (0xc6, 0xd7, 0x6f),
+    (0xd7, 0xd7, 0xd7),
+    (0xff, 0xff, 0xff),
+], dtype=np.uint8)
+CODE = {".": 0, "g": 1, "d": 2, "t": 3, "i": 4}
 
 # --- scene / output ----------------------------------------------------------
 OUT = 340                # final GIF size (px, square)
-SS = 4                   # globe supersample factor
-FRAMES = 36              # frames across one shared loop period
-GLOBE_TURNS = 2          # symmetric 2*pi/14 rotations per loop (higher = faster spin)
-GLOBE_FILL = 0.82        # globe diameter as fraction of the card
-LINE_W = 2.9 * SS        # globe line width at supersample scale (bold, like the site)
+SS = 4                   # supersample factor for the rim / card corners
+FRAMES = 160             # frames per full turn (= one loop)
+FRAME_MS = 50            # 160 x 50ms = an 8s turn
+PX_SCALE = 4             # screen px per globe px -> 256px globe
+BORDER = 4               # .wordmark-globe border (px)
+SHADOW = 8               # .wordmark-globe box-shadow offset (px)
 CORNER = 30              # rounded-card corner radius (px)
 SEED = 7                 # deterministic cloud layout
 
@@ -54,12 +82,8 @@ SEED = 7                 # deterministic cloud layout
 SKY_TOP = (20, 80, 200)     # #1450c8  --sky-deep
 SKY_MID = (30, 104, 240)    # #1e68f0  --sky
 SKY_BOT = (46, 122, 242)    # #2e7af2
-GLOBE_RGB = (8, 12, 28)     # near-black wireframe (matches site's black lines)
+INK = (14, 41, 96)          # #0e2960  --ink
 CLOUD_OPACITY = 0.72        # site .sky-puffs opacity
-
-HALF_FOV = math.radians(FOV_DEG) / 2.0
-TAN_HALF = math.tan(HALF_FOV)
-TILT_X = math.radians(TILT_X_DEG)
 
 # --- pixel-art cloud shapes (ported verbatim from clouds.ts) -----------------
 SHAPES = [
@@ -88,6 +112,123 @@ SHAPES = [
 ]
 # outline colors, light -> deep blue (clouds.ts DEFAULT_LAYERS)
 CLOUD_OUTLINES = [(212, 223, 240), (192, 208, 236), (168, 200, 240), (136, 180, 232)]
+
+
+# ============================ world map ======================================
+def load_world_map(arg: str | None):
+    """Return (map[H, W] class indices, islands[(lat, lon)]) from world-map.ts."""
+    if arg is None:
+        with urllib.request.urlopen(WORLD_MAP_URL, timeout=30) as r:
+            src = r.read().decode()
+    else:
+        path = arg
+        if os.path.isdir(path):
+            path = os.path.join(path, "site", "src", "lib", "world-map.ts")
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+    w = int(re.search(r"MAP_W\s*=\s*(\d+)", src).group(1))
+    h = int(re.search(r"MAP_H\s*=\s*(\d+)", src).group(1))
+    rle = "".join(re.findall(r"'([^']*)'", re.search(r"MAP_RLE\s*=([^;]*);", src).group(1)))
+    out = np.zeros(w * h, dtype=np.uint8)
+    i = 0
+    for cls, run in re.findall(r"([.gdti])(\d*)", rle):
+        n = int(run) if run else 1
+        out[i:i + n] = CODE[cls]
+        i += n
+    assert i == w * h, f"world map decoded to {i} cells, expected {w * h}"
+    nums = [float(v) for v in re.findall(
+        r"-?\d+(?:\.\d+)?", re.search(r"ISLANDS\s*=\s*\[([^\]]*)\]", src).group(1))]
+    islands = list(zip(nums[0::2], nums[1::2]))
+    return out.reshape(h, w), islands
+
+
+# ============================ globe ==========================================
+def globe_sampler(world, islands, n: int, lat: float):
+    """Port of pixel-globe.ts globeSampler: returns lon -> classes[n, n]."""
+    map_h, map_w = world.shape
+    flat = world.reshape(-1)
+    per_deg = map_w / 360
+    lat0 = math.radians(lat)
+    cos_l, sin_l = math.cos(lat0), math.sin(lat0)
+    k = SUB * SUB
+    s = np.arange(k)
+    jj, ii = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+    x = ((ii[..., None] + ((s % SUB) + 0.5) / SUB) / n) * 2 - 1
+    y = 1 - ((jj[..., None] + ((s // SUB) + 0.5) / SUB) / n) * 2
+    r2 = x * x + y * y
+    scale = np.where(r2 > 0.998, np.sqrt(r2 / 0.998), 1.0)
+    x, y = x / scale, y / scale
+    z = np.sqrt(np.maximum(0, 1 - x * x - y * y))
+    la = np.degrees(np.arcsin(np.clip(y * cos_l + z * sin_l, -1, 1)))
+    row_of = np.clip(np.floor((90 - la) * per_deg), 0, map_h - 1).astype(np.int64)
+    lon_of = (np.degrees(np.arctan2(x, z * cos_l - y * sin_l)) + 180).astype(np.float32)
+    row_of = row_of.reshape(n * n, k)
+    lon_of = lon_of.reshape(n * n, k)
+    isl_cell = [min(map_h - 1, math.floor((90 - a) * per_deg)) * map_w
+                + min(map_w - 1, math.floor((b + 180) * per_deg)) for a, b in islands]
+    pix = np.arange(n * n)
+
+    def sample(lon: float) -> np.ndarray:
+        col = np.floor((lon_of + np.float32(lon)) * per_deg).astype(np.int64) % map_w
+        cls = flat[row_of * map_w + col]                     # (P, K)
+        counts = np.zeros((n * n, len(PALETTE)), dtype=np.int16)
+        best = np.zeros(n * n, dtype=np.int64)
+        for q in range(k):                                    # same tie-break as JS
+            c = cls[:, q]
+            counts[pix, c] += 1
+            best = np.where(counts[pix, c] > counts[pix, best], c, best)
+        out = best.astype(np.uint8)
+        for (ila, ilo), cell in zip(islands, isl_cell):
+            la_r, dl = math.radians(ila), math.radians(ilo - lon)
+            if sin_l * math.sin(la_r) + cos_l * math.cos(la_r) * math.cos(dl) <= 0.05:
+                continue
+            gx = math.cos(la_r) * math.sin(dl)
+            gy = cos_l * math.sin(la_r) - sin_l * math.cos(la_r) * math.cos(dl)
+            i = min(n - 1, math.floor((gx + 1) / 2 * n))
+            j = min(n - 1, math.floor((1 - gy) / 2 * n))
+            p = j * n + i
+            if out[p] == 0:
+                c = flat[cell]
+                out[p] = 1 if c == 0 else c
+        return out.reshape(n, n)
+
+    return sample
+
+
+def disc_mask(size: int, cx: float, cy: float, r: float) -> Image.Image:
+    """Anti-aliased filled circle as an L mask (supersampled)."""
+    m = Image.new("L", (size * SS, size * SS), 0)
+    ImageDraw.Draw(m).ellipse(((cx - r) * SS, (cy - r) * SS, (cx + r) * SS, (cy + r) * SS),
+                              fill=255)
+    return m.resize((size, size), Image.LANCZOS)
+
+
+class GlobeLayer:
+    """Draws the styled globe (shadow, ink border, pixel disc) onto a scene."""
+
+    def __init__(self, size: int):
+        d = GLOBE_PX * PX_SCALE
+        self.size = size
+        # centre the globe + its offset shadow as one unit
+        self.ox = (size - d - SHADOW) // 2
+        self.oy = self.ox
+        c = d / 2
+        self.ink = Image.new("RGBA", (size, size), (*INK, 255))
+        self.shadow = disc_mask(size, self.ox + c + SHADOW, self.oy + c + SHADOW, c + BORDER)
+        self.border = disc_mask(size, self.ox + c, self.oy + c, c + BORDER)
+        disc = disc_mask(d, c, c, c)
+        self.disc = Image.new("L", (size, size), 0)
+        self.disc.paste(disc, (self.ox, self.oy))
+
+    def draw(self, scene: Image.Image, classes: np.ndarray) -> None:
+        rgb = PALETTE[classes]
+        art = Image.fromarray(rgb, "RGB").resize(
+            (GLOBE_PX * PX_SCALE,) * 2, Image.NEAREST)
+        full = Image.new("RGBA", (self.size, self.size), (0, 0, 0, 0))
+        full.paste(art, (self.ox, self.oy))
+        scene.paste(self.ink, (0, 0), self.shadow)
+        scene.paste(self.ink, (0, 0), self.border)
+        scene.paste(full, (0, 0), self.disc)
 
 
 # ============================ sky ============================================
@@ -152,7 +293,8 @@ def paste_clouds(base: Image.Image, puffs, pan: float, size: int) -> None:
         sp = sprite
         if alpha < 0.999:  # pre-multiply layer alpha into the sprite's alpha
             a = sp.split()[3].point(lambda v: int(v * alpha))
-            sp = sp.copy(); sp.putalpha(a)
+            sp = sp.copy()
+            sp.putalpha(a)
         x = (x0 - pan) % size
         for dx in (x - size, x, x + size):  # wrap copies on both edges
             layer.alpha_composite(sp, (int(round(dx)), int(round(y))))
@@ -160,62 +302,6 @@ def paste_clouds(base: Image.Image, puffs, pan: float, size: int) -> None:
     a = layer.split()[3].point(lambda v: int(v * CLOUD_OPACITY))
     layer.putalpha(a)
     base.alpha_composite(layer)
-
-
-# ============================ globe ==========================================
-def build_lines():
-    lines = []
-    for i in range(MERIDIANS):
-        a = (i / MERIDIANS) * math.pi * 2
-        j = np.arange(LINE_SEGS + 1)
-        t = (j / LINE_SEGS) * math.pi
-        lines.append(np.stack(
-            [np.sin(t) * math.cos(a), np.cos(t), np.sin(t) * math.sin(a)], axis=1))
-    for i in range(1, PARALLELS):
-        phi = (i / PARALLELS) * math.pi
-        y, r = math.cos(phi), math.sin(phi)
-        j = np.arange(LINE_SEGS + 1)
-        t = (j / LINE_SEGS) * math.pi * 2
-        lines.append(np.stack(
-            [r * np.cos(t), np.full_like(t, y), r * np.sin(t)], axis=1))
-    return lines
-
-
-def rot_y(p, th):
-    c, s = math.cos(th), math.sin(th)
-    return np.stack([p[:, 0] * c + p[:, 2] * s, p[:, 1],
-                     -p[:, 0] * s + p[:, 2] * c], axis=1)
-
-
-def tilt_x(p, ang):
-    c, s = math.cos(ang), math.sin(ang)
-    return np.stack([p[:, 0], p[:, 1] * c - p[:, 2] * s,
-                     p[:, 1] * s + p[:, 2] * c], axis=1)
-
-
-def project(p, size, fill):
-    d = CAM_DIST - p[:, 2]
-    nx = (p[:, 0] / d) / TAN_HALF
-    ny = (p[:, 1] / d) / TAN_HALF
-    px = size / 2 + nx * (size / 2) * fill
-    py = size / 2 - ny * (size / 2) * fill
-    return np.stack([px, py], axis=1)
-
-
-def render_globe(lines, theta, size, color, line_w, fill):
-    """Wireframe on a transparent layer at `size`, uniform color (site look)."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    r = line_w / 2.0
-    for pts in lines:
-        xy = project(tilt_x(rot_y(pts, theta), TILT_X), size, fill)
-        draw.line([tuple(pt) for pt in xy], fill=(*color, 255),
-                  width=int(round(line_w)), joint="curve")
-        # round caps so the polyline ends/joints stay smooth
-        x0, y0 = xy[0]; x1, y1 = xy[-1]
-        draw.ellipse((x0 - r, y0 - r, x0 + r, y0 + r), fill=(*color, 255))
-        draw.ellipse((x1 - r, y1 - r, x1 + r, y1 + r), fill=(*color, 255))
-    return img
 
 
 # ============================ framing / export ===============================
@@ -226,10 +312,23 @@ def rounded_mask(size: int, radius: int) -> Image.Image:
     return m.resize((size, size), Image.LANCZOS)
 
 
-def to_paletted(frame: Image.Image, mask: Image.Image) -> Image.Image:
-    """RGB scene -> P mode; pixels outside the rounded card are transparent."""
-    pal = frame.convert("RGB").quantize(
-        colors=255, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
+def build_palette(sky: Image.Image, puffs) -> Image.Image:
+    """One shared palette for every frame (no per-frame flicker, no dither
+    noise on the flat pixel art): sky rows + cloud/globe/ink colours."""
+    probe = sky.copy().convert("RGBA")
+    paste_clouds(probe, puffs, pan=0, size=OUT)
+    sw = Image.new("RGB", (OUT, 8))
+    for i, c in enumerate([*map(tuple, PALETTE), INK]):
+        sw.paste(c, (i * 8, 0, i * 8 + 8, 8))
+    combo = Image.new("RGB", (OUT, OUT + 8))
+    combo.paste(probe.convert("RGB"), (0, 0))
+    combo.paste(sw, (0, OUT))
+    return combo.quantize(colors=255, method=Image.MEDIANCUT, dither=Image.NONE)
+
+
+def to_paletted(frame: Image.Image, pal_img: Image.Image, mask: Image.Image) -> Image.Image:
+    """RGB scene -> P mode on the shared palette; outside the card is transparent."""
+    pal = frame.convert("RGB").quantize(palette=pal_img, dither=Image.NONE)
     transp = mask.point(lambda v: 255 if v < 128 else 0).convert("1")
     pal.paste(255, transp)
     pal.info["transparency"] = 255
@@ -241,36 +340,37 @@ def main() -> None:
     out_dir = os.path.join(here, "..", "profile", "assets")
     os.makedirs(out_dir, exist_ok=True)
 
-    lines = build_lines()
+    world, islands = load_world_map(sys.argv[1] if len(sys.argv) > 1 else None)
+    sample = globe_sampler(world, islands, GLOBE_PX, VIEW_LAT)
+
     sky = make_sky(OUT)
     puffs = build_clouds(OUT)
     mask = rounded_mask(OUT, CORNER)
-    period = (2 * math.pi) / MERIDIANS
+    globe = GlobeLayer(OUT)
+    pal_img = build_palette(sky, puffs)
 
     frames = []
     for f in range(FRAMES):
         scene = sky.copy().convert("RGBA")
         paste_clouds(scene, puffs, pan=f / FRAMES * OUT, size=OUT)
-        globe = render_globe(lines, f / FRAMES * period * GLOBE_TURNS, OUT * SS,
-                             GLOBE_RGB, LINE_W, GLOBE_FILL).resize(
-            (OUT, OUT), Image.LANCZOS)
-        scene.alpha_composite(globe)
-        frames.append(to_paletted(scene.convert("RGB"), mask))
+        # west to east, as seen from space: features drift right
+        globe.draw(scene, sample(START_LON - f / FRAMES * 360))
+        frames.append(to_paletted(scene, pal_img, mask))
 
     gif_path = os.path.join(out_dir, "globe.gif")
     frames[0].save(gif_path, save_all=True, append_images=frames[1:],
-                   duration=60, loop=0, disposal=2, transparency=255,
-                   optimize=True)
+                   duration=FRAME_MS, loop=0, disposal=2, transparency=255,
+                   optimize=False)
 
-    # static transparent wireframe for the website project-card icon
-    icon = render_globe(lines, 0.0, OUT * SS, (30, 104, 240), 2.9 * SS,
-                        GLOBE_FILL).resize((OUT, OUT), Image.LANCZOS)
+    # static transparent globe (same styling) for the website project-card icon
+    icon = Image.new("RGBA", (OUT, OUT), (0, 0, 0, 0))
+    globe.draw(icon, sample(START_LON))
     png_path = os.path.join(out_dir, "globe.png")
-    icon.save(png_path)
+    icon.save(png_path, optimize=True)
 
-    print(f"wrote {gif_path} ({os.path.getsize(gif_path)//1024} KB, "
+    print(f"wrote {gif_path} ({os.path.getsize(gif_path) // 1024} KB, "
           f"{OUT}px, {FRAMES} frames)")
-    print(f"wrote {png_path} ({os.path.getsize(png_path)//1024} KB)")
+    print(f"wrote {png_path} ({os.path.getsize(png_path) // 1024} KB)")
 
 
 if __name__ == "__main__":
