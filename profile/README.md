@@ -8,7 +8,8 @@
     `uv run tools/make-profile-art.py` after the site's look changes, and ship
     visual changes under a new filename (GitHub caches /raw/ images hard).
   - Web World Wide card icon is the site's favicon (site/public/favicon.png).
-  - Project logos: 400x400 PNGs in ./assets, linked to each repo.
+  - Project logos: 400x400 PNGs in ./assets, linked to each repo, shown at 96px.
+  - Nav pills (link-*.png) and social tiles (social-*.png) are generated too.
   - Each project card has the same shape: logo | title, blurb, platforms and
     stack as one quiet line, status badges. Titles are plain text (no emoji).
     Status badges (in order): stars · last commit · latest release · license · website.
@@ -16,16 +17,14 @@
 
 <a name="top"></a>
 
-<a href="https://webworldwide.online"><img src="assets/banner.gif" width="100%" alt="Web World Wide: my world on the web. A pixel-art Earth spinning in a blue sky with pixel clouds." /></a>
+<a href="https://webworldwide.online"><img src="assets/banner-v2.gif" width="100%" alt="Web World Wide: my world on the web. A pixel-art Earth spinning in a blue sky with pixel clouds." /></a>
 
 <p>
-  <a href="https://webworldwide.online"><b>webworldwide.online</b></a>
-  &nbsp;·&nbsp; <a href="https://webworldwide.online/blog/">Blog</a>
-  &nbsp;·&nbsp; <a href="https://www.youtube.com/@web_world_wide">YouTube</a>
-  &nbsp;·&nbsp; <a href="https://webworldwide.online/rss.xml">RSS</a>
+  <a href="https://webworldwide.online"><img src="assets/link-site.png" height="42" alt="webworldwide.online" /></a>
+  <a href="https://webworldwide.online/blog/"><img src="assets/link-blog.png" height="42" alt="Blog" /></a>
+  <a href="https://www.youtube.com/@web_world_wide"><img src="assets/link-youtube.png" height="42" alt="YouTube" /></a>
+  <a href="https://webworldwide.online/rss.xml"><img src="assets/link-rss.png" height="42" alt="RSS feed" /></a>
 </p>
-
-<br/>
 
 <h2>
   <picture>
@@ -37,16 +36,16 @@
 <!-- FileID -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/FileID"><img src="assets/fileid-logo.png" width="110" alt="FileID app icon" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/FileID"><img src="assets/fileid-logo.png" width="96" alt="FileID app icon" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/FileID">FileID</a></h3>
       <p>On-device AI file organizer. Clusters faces, finds duplicates, captions images,
       suggests filenames, and restructures folders with a preview before anything moves.
-      Fully local: no cloud, no telemetry.<br/>
-      <sub>macOS · Windows &nbsp;—&nbsp; Rust · Swift · .NET</sub></p>
+      Fully local: no cloud, no telemetry.</p>
       <p>
+        <sub>macOS · Windows &nbsp;—&nbsp; Rust · Swift · .NET</sub><br/>
         <a href="https://github.com/WebWorldWide/FileID/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/FileID?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/FileID/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/FileID?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/FileID/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/FileID?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
@@ -60,16 +59,16 @@
 <!-- Document Finder -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/Document-Finder"><img src="assets/document-finder-logo.png" width="110" alt="Document Finder app icon" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/Document-Finder"><img src="assets/document-finder-logo.png" width="96" alt="Document Finder app icon" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/Document-Finder">Document Finder</a></h3>
       <p>Open-access research finder. Searches 8 scholarly sources plus the web in parallel,
       extracts text into per-query SQLite libraries, and bundles each one into a
-      <code>.zip</code> ready for an AI context window. Optional on-device AI.<br/>
-      <sub>macOS · Windows · Linux &nbsp;—&nbsp; Tauri · Rust · SolidJS · SQLite</sub></p>
+      <code>.zip</code> ready for an AI context window. Optional on-device AI.</p>
       <p>
+        <sub>macOS · Windows · Linux &nbsp;—&nbsp; Tauri · Rust · SolidJS · SQLite</sub><br/>
         <a href="https://github.com/WebWorldWide/Document-Finder/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/Document-Finder?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/Document-Finder/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/Document-Finder?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/Document-Finder/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/Document-Finder?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
@@ -83,16 +82,16 @@
 <!-- Media Shuttle -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/media-shuttle"><img src="assets/media-shuttle-logo.png" width="110" alt="Media Shuttle app icon" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/media-shuttle"><img src="assets/media-shuttle-logo.png" width="96" alt="Media Shuttle app icon" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/media-shuttle">Media Shuttle</a></h3>
       <p>Verified camera-card ingest. Sorts photos and videos into a predictable folder layout,
       checks every copy with SHA-256, imports straight into Apple Photos, and keeps card erase
-      locked until every file is confirmed safe.<br/>
-      <sub>macOS · Windows · Linux &nbsp;—&nbsp; Swift · .NET · Python · GTK</sub></p>
+      locked until every file is confirmed safe.</p>
       <p>
+        <sub>macOS · Windows · Linux &nbsp;—&nbsp; Swift · .NET · Python · GTK</sub><br/>
         <a href="https://github.com/WebWorldWide/media-shuttle/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/media-shuttle?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/media-shuttle/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/media-shuttle?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/media-shuttle/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/media-shuttle?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
@@ -106,17 +105,17 @@
 <!-- Anchor -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/Anchor"><img src="assets/anchor-logo.png" width="110" alt="Anchor icon" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/Anchor"><img src="assets/anchor-logo.png" width="96" alt="Anchor icon" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/Anchor">Anchor</a></h3>
       <p>Paused should mean paused. Holds your pause until <em>you</em> press play, so ads,
       reconnects and scripts can't restart a video behind your back, while autoplay, next
       episodes and media keys keep working. Works with any HTML player, including Jellyfin
-      and Plex. No network requests, no telemetry.<br/>
-      <sub>Chrome · Brave · Edge · Vivaldi · Opera (desktop) &nbsp;—&nbsp; JavaScript · Manifest V3</sub></p>
+      and Plex. No network requests, no telemetry.</p>
       <p>
+        <sub>Chrome · Brave · Edge · Vivaldi · Opera (desktop) &nbsp;—&nbsp; JavaScript · Manifest V3</sub><br/>
         <a href="https://github.com/WebWorldWide/Anchor/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/Anchor?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/Anchor/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/Anchor?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/Anchor/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/Anchor?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
@@ -129,16 +128,16 @@
 <!-- Watched Blocked -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/watched-blocked"><img src="assets/watched-blocked-logo.png" width="110" alt="Watched Blocked icon" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/watched-blocked"><img src="assets/watched-blocked-logo.png" width="96" alt="Watched Blocked icon" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/watched-blocked">Watched Blocked</a></h3>
       <p>Hide videos you've already watched on YouTube. Clears them from the home page,
       sidebar, search and playlists, with a minimum-watched threshold, hide-or-dim mode
-      and per-page toggles. Settings sync through your browser.<br/>
-      <sub>Chrome · Brave · Edge &nbsp;—&nbsp; JavaScript · Manifest V3</sub></p>
+      and per-page toggles. Settings sync through your browser.</p>
       <p>
+        <sub>Chrome · Brave · Edge &nbsp;—&nbsp; JavaScript · Manifest V3</sub><br/>
         <a href="https://github.com/WebWorldWide/watched-blocked/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/watched-blocked?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/watched-blocked/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/watched-blocked?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         <a href="https://github.com/WebWorldWide/watched-blocked/releases/latest"><img src="https://img.shields.io/github/v/release/WebWorldWide/watched-blocked?style=flat-square&color=28b083&labelColor=0e2960" alt="Latest release" /></a>
@@ -151,16 +150,16 @@
 <!-- Web World Wide -->
 <table>
   <tr>
-    <td width="150" align="center" valign="middle">
-      <a href="https://github.com/WebWorldWide/webworldwide-website"><img src="assets/www-favicon.png" width="110" alt="Web World Wide favicon: a pixel-art globe" /></a>
+    <td width="124" align="center" valign="middle">
+      <a href="https://github.com/WebWorldWide/webworldwide-website"><img src="assets/www-favicon.png" width="96" alt="Web World Wide favicon: a pixel-art globe" /></a>
     </td>
     <td valign="middle">
       <h3><a href="https://github.com/WebWorldWide/webworldwide-website">Web World Wide</a></h3>
       <p>The home base. An independent, self-hosted blog and site built with Astro, featuring
       the hand-built pixel-art Earth spinning above. Apps, writing, videos, and links
-      to everywhere else.<br/>
-      <sub>Web &nbsp;—&nbsp; Astro · TypeScript</sub></p>
+      to everywhere else.</p>
       <p>
+        <sub>Web &nbsp;—&nbsp; Astro · TypeScript</sub><br/>
         <a href="https://github.com/WebWorldWide/webworldwide-website/stargazers"><img src="https://img.shields.io/github/stars/WebWorldWide/webworldwide-website?style=flat-square&logo=github&color=1e68f0&labelColor=0e2960" alt="Stars" /></a>
         <a href="https://github.com/WebWorldWide/webworldwide-website/commits"><img src="https://img.shields.io/github/last-commit/WebWorldWide/webworldwide-website?style=flat-square&color=ec5a2b&labelColor=0e2960" alt="Last commit" /></a>
         &nbsp;<a href="https://webworldwide.online"><img src="https://img.shields.io/badge/Website-1e68f0?style=flat-square&logo=googlechrome&logoColor=white" alt="webworldwide.online" /></a>
@@ -169,8 +168,6 @@
   </tr>
 </table>
 
-<br/>
-
 <h2>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/eyebrow-elsewhere-dark.png" />
@@ -178,14 +175,14 @@
   </picture>
 </h2>
 
-<p>
-  <a href="https://www.youtube.com/@web_world_wide">YouTube</a>
-  &nbsp;·&nbsp; <a href="https://x.com/mywebworldwide">X</a>
-  &nbsp;·&nbsp; <a href="https://bsky.app/profile/web-world-wide.bsky.social">Bluesky</a>
-  &nbsp;·&nbsp; <a href="https://mastodon.social/@webworldwide">Mastodon</a>
-  &nbsp;·&nbsp; <a href="https://www.reddit.com/user/web_world_wide">Reddit</a>
-  &nbsp;·&nbsp; <a href="https://www.instagram.com/mywebworldwide">Instagram</a>
-  &nbsp;·&nbsp; <a href="https://www.threads.net/@mywebworldwide">Threads</a>
+<p align="center">
+  <a href="https://www.youtube.com/@web_world_wide"><img src="assets/social-youtube.png" width="201" alt="YouTube" /></a>
+  <a href="https://x.com/thewebworldwide"><img src="assets/social-x.png" width="201" alt="X" /></a>
+  <a href="https://bsky.app/profile/web-world-wide.bsky.social"><img src="assets/social-bluesky.png" width="201" alt="Bluesky" /></a>
+  <a href="https://mastodon.social/@webworldwide"><img src="assets/social-mastodon.png" width="201" alt="Mastodon" /></a>
+  <a href="https://www.reddit.com/user/web_world_wide"><img src="assets/social-reddit.png" width="201" alt="Reddit" /></a>
+  <a href="https://www.instagram.com/thewebworldwide"><img src="assets/social-instagram.png" width="201" alt="Instagram" /></a>
+  <a href="https://www.threads.net/@thewebworldwide"><img src="assets/social-threads.png" width="201" alt="Threads" /></a>
 </p>
 
 <br/>
