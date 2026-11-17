@@ -32,11 +32,15 @@ Globe pixels are scaled by an exact integer (nearest neighbour, like the
 site's `image-rendering: pixelated`); only the disc's rim is anti-aliased.
 The scene is framed as a rounded-rect card.
 
-Also emits a static transparent globe (globe.png) for the website
-project-card icon.
+Also emits www-globe.png: a 400x400 wireframe-globe app icon for the
+website's project card (sky tile, depth-cued wireframe, ink shadow).
+
+Filenames are versioned by name (header-globe.gif, www-globe.png): GitHub and
+browsers cache /raw/ images hard, so a visual change should ship under a new
+name rather than overwrite the old file.
 
 Run:  uv run tools/make-globe-gif.py [path/to/world-map.ts | path/to/site-checkout]
-Outputs profile/assets/globe.gif + globe.png.
+Outputs profile/assets/header-globe.gif + www-globe.png.
 """
 from __future__ import annotations
 
@@ -70,8 +74,8 @@ CODE = {".": 0, "g": 1, "d": 2, "t": 3, "i": 4}
 # --- scene / output ----------------------------------------------------------
 OUT = 340                # final GIF size (px, square)
 SS = 4                   # supersample factor for the rim / card corners
-FRAMES = 160             # frames per full turn (= one loop)
-FRAME_MS = 50            # 160 x 50ms = an 8s turn
+FRAMES = 240             # frames per full turn (= one loop)
+FRAME_MS = 80            # 240 x 80ms = a ~19s turn (the site's is 24s)
 PX_SCALE = 4             # screen px per globe px -> 256px globe
 BORDER = 4               # .wordmark-globe border (px)
 SHADOW = 8               # .wordmark-globe box-shadow offset (px)
@@ -304,6 +308,116 @@ def paste_clouds(base: Image.Image, puffs, pan: float, size: int) -> None:
     base.alpha_composite(layer)
 
 
+# ============================ wireframe icon =================================
+ICON = 400               # project-card icon size (matches the other logos)
+ICON_RADIUS = 88         # app-icon corner radius
+WF_MERIDIANS = 12
+WF_PARALLELS = 8         # bands -> 7 parallels
+WF_TILT = 22.0           # deg, north pole toward the viewer
+WF_SPIN = 18.0           # deg, so no meridian sits dead-centre
+WF_SEGS = 180
+
+
+def _wire_lines():
+    lines = []
+    t = np.linspace(0, math.pi, WF_SEGS + 1)
+    for i in range(WF_MERIDIANS):
+        a = i / WF_MERIDIANS * math.pi * 2
+        lines.append(np.stack([np.sin(t) * math.cos(a), np.cos(t), np.sin(t) * math.sin(a)], 1))
+    t = np.linspace(0, 2 * math.pi, WF_SEGS * 2 + 1)
+    for i in range(1, WF_PARALLELS):
+        phi = i / WF_PARALLELS * math.pi
+        y, r = math.cos(phi), math.sin(phi)
+        lines.append(np.stack([r * np.cos(t), np.full_like(t, y), r * np.sin(t)], 1))
+    return lines
+
+
+def _orient(p):
+    a, b = math.radians(WF_SPIN), math.radians(WF_TILT)
+    x = p[:, 0] * math.cos(a) + p[:, 2] * math.sin(a)
+    z = -p[:, 0] * math.sin(a) + p[:, 2] * math.cos(a)
+    y = p[:, 1]
+    return np.stack([x, y * math.cos(b) - z * math.sin(b), y * math.sin(b) + z * math.cos(b)], 1)
+
+
+def make_wire_icon() -> Image.Image:
+    """Sky-tile app icon: glassy sphere, depth-cued wireframe, ink outline."""
+    S = ICON * SS
+    c = S / 2
+    R = S * 0.33
+    lw = 4.5 * SS            # front line width
+    sh = 10 * SS             # ink drop-shadow offset (brand look)
+
+    # tile: sky gradient + a soft highlight
+    tile = make_sky(S).convert("RGBA")
+    yy, xx = np.mgrid[0:S, 0:S]
+    glow = np.clip(1 - np.hypot(xx - S * 0.3, yy - S * 0.22) / (S * 0.75), 0, 1) ** 2 * 70
+    tile_arr = np.asarray(tile).astype(np.float32)
+    tile_arr[..., :3] = np.clip(tile_arr[..., :3] + glow[..., None], 0, 255)
+    tile = Image.fromarray(tile_arr.astype(np.uint8), "RGBA")
+
+    d = ImageDraw.Draw(tile)
+    ring = 5 * SS            # ink ring around the sphere
+    # ink drop shadow + ink ring
+    d.ellipse((c - R - ring + sh, c - R - ring + sh, c + R + ring + sh, c + R + ring + sh),
+              fill=(*INK, 255))
+    d.ellipse((c - R - ring, c - R - ring, c + R + ring, c + R + ring), fill=(*INK, 255))
+
+    # sphere body: deep sky with a lit upper-left (simple Lambert-ish shading)
+    dx, dy = (xx - c) / R, (yy - c) / R
+    r2 = dx * dx + dy * dy
+    inside = r2 <= 1
+    nz = np.sqrt(np.clip(1 - r2, 0, 1))
+    light = np.clip(-0.45 * dx - 0.55 * dy + 0.7 * nz, 0, 1)
+    base = np.array(SKY_TOP, np.float32)
+    lit = np.array((120, 178, 255), np.float32)
+    body = base + (lit - base) * light[..., None] ** 1.3
+    arr = np.asarray(tile).astype(np.float32)
+    arr[inside, :3] = body[inside]
+    tile = Image.fromarray(arr.astype(np.uint8), "RGBA")
+
+    # wireframe: back half faint, front half bold white; joints rounded
+    back = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    front = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    db, df = ImageDraw.Draw(back), ImageDraw.Draw(front)
+    for pts in _wire_lines():
+        q = _orient(pts)
+        px = c + q[:, 0] * R
+        py = c - q[:, 1] * R
+        for k in range(len(q) - 1):
+            zf = (q[k, 2] + q[k + 1, 2]) / 2
+            seg = [(px[k], py[k]), (px[k + 1], py[k + 1])]
+            if zf >= 0:
+                df.line(seg, fill=(255, 255, 255, 255), width=int(lw))
+                r = lw / 2
+                df.ellipse((px[k] - r, py[k] - r, px[k] + r, py[k] + r), fill=(255, 255, 255, 255))
+            else:
+                db.line(seg, fill=(255, 255, 255, 255), width=int(lw * 0.6))
+    # clip both layers to the sphere so caps never poke past the rim
+    clip = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(clip).ellipse((c - R, c - R, c + R, c + R), fill=255)
+    zero = Image.new("L", (S, S), 0)
+    back.putalpha(Image.composite(back.split()[3].point(lambda v: int(v * 0.30)), zero, clip))
+    front.putalpha(Image.composite(front.split()[3], zero, clip))
+    tile.alpha_composite(back)
+    tile.alpha_composite(front)
+
+    # crisp white rim, then the specular highlight
+    d = ImageDraw.Draw(tile)
+    d.ellipse((c - R, c - R, c + R, c + R), outline=(255, 255, 255, 255), width=int(lw * 1.2))
+    spec = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    ImageDraw.Draw(spec).ellipse((c - R * 0.62, c - R * 0.70, c - R * 0.18, c - R * 0.38),
+                                 fill=(255, 255, 255, 90))
+    from PIL import ImageFilter
+    tile.alpha_composite(spec.filter(ImageFilter.GaussianBlur(6 * SS)))
+
+    # rounded app-icon mask
+    m = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(m).rounded_rectangle((0, 0, S - 1, S - 1), radius=ICON_RADIUS * SS, fill=255)
+    tile.putalpha(m)
+    return tile.resize((ICON, ICON), Image.LANCZOS)
+
+
 # ============================ framing / export ===============================
 def rounded_mask(size: int, radius: int) -> Image.Image:
     m = Image.new("L", (size * SS, size * SS), 0)
@@ -357,16 +471,13 @@ def main() -> None:
         globe.draw(scene, sample(START_LON - f / FRAMES * 360))
         frames.append(to_paletted(scene, pal_img, mask))
 
-    gif_path = os.path.join(out_dir, "globe.gif")
+    gif_path = os.path.join(out_dir, "header-globe.gif")
     frames[0].save(gif_path, save_all=True, append_images=frames[1:],
                    duration=FRAME_MS, loop=0, disposal=2, transparency=255,
                    optimize=False)
 
-    # static transparent globe (same styling) for the website project-card icon
-    icon = Image.new("RGBA", (OUT, OUT), (0, 0, 0, 0))
-    globe.draw(icon, sample(START_LON))
-    png_path = os.path.join(out_dir, "globe.png")
-    icon.save(png_path, optimize=True)
+    png_path = os.path.join(out_dir, "www-globe.png")
+    make_wire_icon().save(png_path, optimize=True)
 
     print(f"wrote {gif_path} ({os.path.getsize(gif_path) // 1024} KB, "
           f"{OUT}px, {FRAMES} frames)")
