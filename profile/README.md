@@ -21,9 +21,8 @@
 
 <p>
   <a href="https://webworldwide.online"><img src="assets/link-site.png" height="42" alt="webworldwide.online" /></a>
-  <a href="https://webworldwide.online/blog/"><img src="assets/link-blog.png" height="42" alt="Blog" /></a>
   <a href="https://www.youtube.com/@web_world_wide"><img src="assets/link-youtube.png" height="42" alt="YouTube" /></a>
-  <a href="https://webworldwide.online/rss.xml"><img src="assets/link-rss.png" height="42" alt="RSS feed" /></a>
+  <a href="https://webworldwide.online/blog/"><img src="assets/link-blog.png" height="42" alt="Blog" /></a>
 </p>
 
 <h2>
@@ -189,6 +188,4 @@
 
 <p align="center">
   <sub><em>My World on the Web</em> &nbsp;·&nbsp; © Web World Wide &nbsp;·&nbsp; <a href="#top">back to top ↑</a></sub>
-  <br/>
-  <img src="https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FWebWorldWide&labelColor=%230e2960&countColor=%23ec5a2b&style=flat-square&label=visitors" alt="Unique profile visitors" />
 </p>
